@@ -81,3 +81,73 @@ void fill_matrix(matrix* mat, f32 x){
   }
 }
 
+void scale_matrix(matrix* mat, f32 scale) {
+  u64 size = (u64)mat->rows * mat->cols;
+
+  for(u64 i = 0; i < size; i++){
+    mat->data[i] *= scale;
+  }
+}
+
+b32 sum_of_matrix(matrix* mat, f32 scale){
+  u64 size = (u64)mat->rows * mat->cols;
+
+  f32 sum = 0.0f;
+  for(u64 i = 0; i < size; i++){
+    sum += mat->data[i];
+  }
+
+  return sum;
+}
+
+b32 add_matrix(matrix* out, const matrix* a, const matrix* b){
+  if (a->rows != b->rows || a->cols != b->cols) {
+    return false;
+  }
+  if (out->rows != a->rows || out->cols != a->cols) {
+    return false;
+  }
+
+  u64 size = (u64)out->rows * out->cols;
+  for (u64 i = 0; i < size; i++) {
+    out->data[i] = a->data[i] + b->data[i];
+  }
+
+  return false;
+}
+
+b32 sub_matrix(matrix* out, const matrix* a, const matrix* b){
+  if (a->rows != b->rows || a->cols != b->cols) {
+    return false;
+  }
+  if (out->rows != a->rows || out->cols != a->cols) {
+    return false;
+  }
+
+  u64 size = (u64)out->rows * out->cols;
+  for (u64 i = 0; i < size; i++) {
+    out->data[i] = a->data[i] - b->data[i];
+  }
+
+  return false;
+}
+
+b32 mul_matrix(matrix* out, const matrix* a, const matrix* b, b8 zero_output, b8 transpose_a, b8 transpose_b){
+  u32 a_rows = transpose_a ? a->cols : a->rows;
+  u32 a_cols = transpose_a ? a->rows: a->cols;
+  u32 b_cols = transpose_a ? b->cols : b->rows;
+  u32 b_rows = transpose_a ? b->rows : b->cols ;
+
+  if(a->cols != b->cols)
+    return false;
+
+  if(out->rows != a->rows || out->cols != a->cols)
+    return false;
+
+  if(zero_output)
+    clear_matrix(out);
+
+  return true;
+}
+
+
