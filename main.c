@@ -45,7 +45,6 @@ int main() {
   mem_arena* permanent_arena = arena_create(GiB(1), MiB(1));
   arena_destroy(permanent_arena);
 
-  hello();
   return 0;
 }
 
@@ -132,20 +131,79 @@ b32 sub_matrix(matrix* out, const matrix* a, const matrix* b){
   return false;
 }
 
-b32 mul_matrix(matrix* out, const matrix* a, const matrix* b, b8 zero_output, b8 transpose_a, b8 transpose_b){
-  u32 a_rows = transpose_a ? a->cols : a->rows;
-  u32 a_cols = transpose_a ? a->rows: a->cols;
-  u32 b_cols = transpose_a ? b->cols : b->rows;
-  u32 b_rows = transpose_a ? b->rows : b->cols ;
+// n stands for non-transpose
+// t stands for tranpose
+void mat_mul_nn(matrix* out, const matrix* a, const matrix* b){
+    for (u64 i = 0; i < out->rows; i++){
+        for (u64 j = 0; j < out->cols; j++){
+            for (u64 k = 0; k < a->cols; k++){
+                out->data[i*out->cols + j] +=
+                    a->data[i*a->cols + k] *
+                    b->data[k*b->cols + j];
+            }
+        }
+    }
+}
 
-  if(a->cols != b->cols)
+void mat_mul_nt(matrix* out, const matrix* a, const matrix* b){
+    for (u64 i = 0; i < out->rows; i++){
+        for (u64 j = 0; j < out->cols; j++){
+            for (u64 k = 0; k < a->cols; k++){
+                out->data[i*out->cols + j] +=
+                    a->data[i*a->cols + k] *
+                    b->data[j*b->cols + k];
+            }
+        }
+    }
+}
+
+void mat_mul_tn(matrix* out, const matrix* a, const matrix* b){
+    for (u64 i = 0; i < out->rows; i++){
+        for (u64 j = 0; j < out->cols; j++){
+            for (u64 k = 0; k < a->rows; k++){
+                out->data[i*out->cols + j] +=
+                    a->data[k*a->cols + i] *
+                    b->data[k*b->cols + j];
+            }
+        }
+    }
+}
+
+void mat_mul_tt(matrix* out, const matrix* a, const matrix* b){
+    for (u64 i = 0; i < out->rows; i++){
+        for (u64 j = 0; j < out->cols; j++){
+            for (u64 k = 0; k < a->rows; k++){
+                out->data[i*out->cols + j] +=
+                    a->data[k*a->cols + i] *
+                    b->data[j*b->cols + k];
+            }
+        }
+    }
+}
+
+b32 mul_matrix(matrix* out, const matrix* a, const matrix* b, b8 zero_output, b8 transpose_a, b8 transpose_b){
+
+  u32 a_rows = transpose_a ? a->cols : a->rows;
+  u32 a_cols = transpose_a ? a->rows : a->cols;
+  u32 b_rows = transpose_b ? b->cols : b->rows;
+  u32 b_cols = transpose_b ? b->rows : b->cols;
+
+  if(a_cols != b_rows)
     return false;
 
-  if(out->rows != a->rows || out->cols != a->cols)
+  if(out->rows != a_rows || out->cols != b_cols)
     return false;
 
   if(zero_output)
     clear_matrix(out);
+
+  u32 transpose = (transpose_a << 1) | transpose_b;
+  switch (transpose){
+    case 0b00: {mat_mul_nn(out, a, b);} break;
+    case 0b01: {mat_mul_nt(out, a, b);} break;
+    case 0b10: {mat_mul_tn(out, a, b);} break;
+    case 0b11: {mat_mul_tt(out, a, b);} break;
+  }
 
   return true;
 }
