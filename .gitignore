@@ -1,0 +1,4 @@
+# build artifacts
+main
+*.o
+*.out
