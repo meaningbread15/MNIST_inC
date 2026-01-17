@@ -1,4 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 // in-built inclusion
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +25,9 @@ b32 copy_matrix(matrix* dst, matrix* src);
 void fill_matrix(matrix* mat, f32 x);
 void scale_matrix(matrix* mat, f32 scale);
 
+// loading the matrix in
+matrix* load_matrix(mem_arena* arena, u32 rows, u32 cols, const char* filename);
+
 // arithmetic operators
 b32 add_matrix(matrix* out, const matrix* a, const matrix* b);
 b32 sub_matrix(matrix* out, const matrix* a, const matrix* b);
@@ -39,13 +45,52 @@ b32 grad_relu_add_matrix(matrix* out, const matrix* in);
 b32 grad_softmax_add_matrix(matrix* out, const matrix* softmax_out);
 b32 grad_cross_entropy_add_matrix(matrix* out, const matrix* expected_probab, const matrix* actual_probab);
 
+// 
+void draw_MNIST_digits(f32* data);
+
 int main() {
   printf("Hello, world!\n");
 
   mem_arena* permanent_arena = arena_create(GiB(1), MiB(1));
+
+  matrix* train_images = load_matrix(permanent_arena, 60000, 784, "train_images.mat");
+  matrix* test_images = load_matrix(permanent_arena, 60000, 784, "test_images.mat");
+  matrix* train_labels = create_matrix(permanent_arena, 60000, 10);
+  matrix* test_labels = create_matrix(permanent_arena, 60000, 10);
+
+  {
+    matrix* train_labels_file = load_matrix(permanent_arena, 60000, 1, train_images);
+    matrix* test_labels_file = load_matrix(permanent_arena, 60000, 1, test_images);
+
+    for (u32 i = 0; i < 60000; i++) {
+      u32 num = train_labels_file->data[i];
+
+      train_labels->data[i * 10 + num] = 1.0f;
+    }
+    for (u32 i = 0; i < 60000; i++) {
+      u32 num = test_labels_file->data[i];
+
+      test_labels->data[i * 10 + num] = 1.0f;
+    }
+  }
+
   arena_destroy(permanent_arena);
 
   return 0;
+}
+
+void draw_MNIST_digits(f32* data){
+  for (u32 y = 0; y < 28; y++) {
+    for (u32 x = 0; x < 28; x++) {
+      f32 num = data[x + y * 28];
+      u32 col = 232 + (u32)(num * 24);
+
+      printf("\x1b[48;5;%dm  ", col);
+    }
+
+    printf("\n");
+  }
+  printf("\x1b[0m");
 }
 
 matrix* create_matrix(mem_arena* arena, u32 rows, u32 cols){
@@ -54,6 +99,24 @@ matrix* create_matrix(mem_arena* arena, u32 rows, u32 cols){
   mat->rows = rows;
   mat->cols= cols;
   mat->data= PUSH_ARRAY(arena, f32, (u64)rows * cols);
+
+  return mat;
+}
+
+matrix* load_matrix(mem_arena* arena, u32 rows, u32 cols, const char* filename){
+  matrix* mat = create_matrix(arena, rows, cols);
+
+  FILE* f = fopen(filename, "rb");
+
+  fseek(f, 0, SEEK_END);
+  u64 size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  size = MIN(size, sizeof(f32)*rows*cols);
+
+  fread(mat->data, 1, size, f);
+
+  fclose(f);
 
   return mat;
 }
@@ -208,4 +271,52 @@ b32 mul_matrix(matrix* out, const matrix* a, const matrix* b, b8 zero_output, b8
   return true;
 }
 
+b32 relu_matrix(matrix* out, const matrix* in){
+  if (out->rows != in->rows || out->cols != in->cols) {
+    return false;
+  }
 
+  u64 size = (u64)out->rows * out->cols;
+  for (u64 i = 0; i < size; i++) {
+    out->data[i] = MAX(0, in->data[i]);
+  }
+
+  return true;
+}
+
+b32 softmax_matrix(matrix* out, const matrix* in){
+  if (out->rows != in->rows || out->cols != in->cols) {
+    return false;
+  }
+
+  u64 size = (u64)out->rows * out->cols;
+
+  f32 sum = 0.0;
+  for (u64 i = 0; i < size; i++) {
+    out->data[i] = expf(in->data[i]);
+    sum += out->data[i];
+  }
+
+  scale_matrix(out, 1.0f / sum);
+  return true;
+}
+
+b32 cross_entropy_matrix(matrix* out, const matrix* expected_probab, const matrix* actual_probab){
+  if (expected_probab->rows != actual_probab->rows || expected_probab->cols != actual_probab->cols) {
+    return false;
+  }
+  if (out->rows != expected_probab->rows || out->cols != expected_probab->cols) {
+    return false;
+  }
+
+  u64 size = (u64)out->rows * out->cols;
+  for (u64 i = 0; i < size; i++) {
+    out->data[i] = expected_probab->data[i] == 0.0f ? 0.0f : expected_probab->data[i] * -logf(expected_probab->data[i]);
+  }
+
+  return true;
+}
+
+b32 grad_relu_add_matrix(matrix* out, const matrix* in);
+b32 grad_softmax_add_matrix(matrix* out, const matrix* softmax_out);
+b32 grad_cross_entropy_add_matrix(matrix* out, const matrix* expected_probab, const matrix* actual_probab);
