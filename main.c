@@ -49,30 +49,37 @@ b32 grad_cross_entropy_add_matrix(matrix* out, const matrix* expected_probab, co
 void draw_MNIST_digits(f32* data);
 
 int main() {
-  printf("Hello, world!\n");
-
   mem_arena* permanent_arena = arena_create(GiB(1), MiB(1));
 
   matrix* train_images = load_matrix(permanent_arena, 60000, 784, "train_images.mat");
-  matrix* test_images = load_matrix(permanent_arena, 60000, 784, "test_images.mat");
+  matrix* test_images = load_matrix(permanent_arena, 10000, 784, "test_images.mat");
   matrix* train_labels = create_matrix(permanent_arena, 60000, 10);
-  matrix* test_labels = create_matrix(permanent_arena, 60000, 10);
+  matrix* test_labels = create_matrix(permanent_arena, 10000, 10);
 
   {
-    matrix* train_labels_file = load_matrix(permanent_arena, 60000, 1, train_images);
-    matrix* test_labels_file = load_matrix(permanent_arena, 60000, 1, test_images);
+    matrix* train_labels_file = load_matrix(permanent_arena, 60000, 1, "train_labels.mat");
+    matrix* test_labels_file = load_matrix(permanent_arena, 10000, 1,"test_labels.mat");
 
     for (u32 i = 0; i < 60000; i++) {
       u32 num = train_labels_file->data[i];
 
       train_labels->data[i * 10 + num] = 1.0f;
     }
-    for (u32 i = 0; i < 60000; i++) {
+    for (u32 i = 0; i < 10000; i++) {
       u32 num = test_labels_file->data[i];
 
       test_labels->data[i * 10 + num] = 1.0f;
     }
   }
+
+  draw_MNIST_digits(&train_images->data[0 * 784]);
+  draw_MNIST_digits(&test_images->data[0 * 784]);
+
+  for (u32 i = 0; i < 10; i++) {
+    printf("%.0f", train_labels->data[i]);
+  }
+
+  printf("\n");
 
   arena_destroy(permanent_arena);
 
@@ -107,6 +114,10 @@ matrix* load_matrix(mem_arena* arena, u32 rows, u32 cols, const char* filename){
   matrix* mat = create_matrix(arena, rows, cols);
 
   FILE* f = fopen(filename, "rb");
+  if (!f) {
+      fprintf(stderr, "Failed to open %s\n", filename);
+      return NULL;
+  }
 
   fseek(f, 0, SEEK_END);
   u64 size = ftell(f);
@@ -122,7 +133,7 @@ matrix* load_matrix(mem_arena* arena, u32 rows, u32 cols, const char* filename){
 }
 
 b32 copy_matrix(matrix* dst, matrix* src){
-  if (dst->rows != src->rows || dst->cols != src->rows) {
+  if (dst->rows != src->rows || dst->cols != src->cols) {
     return false;
   }
 
@@ -175,7 +186,7 @@ b32 add_matrix(matrix* out, const matrix* a, const matrix* b){
     out->data[i] = a->data[i] + b->data[i];
   }
 
-  return false;
+  return true;
 }
 
 b32 sub_matrix(matrix* out, const matrix* a, const matrix* b){
@@ -191,7 +202,7 @@ b32 sub_matrix(matrix* out, const matrix* a, const matrix* b){
     out->data[i] = a->data[i] - b->data[i];
   }
 
-  return false;
+  return true;
 }
 
 // n stands for non-transpose
@@ -291,13 +302,18 @@ b32 softmax_matrix(matrix* out, const matrix* in){
 
   u64 size = (u64)out->rows * out->cols;
 
-  f32 sum = 0.0;
+  f32 max = in->data[0];
+  for (u64 i = 1; i < size; i++)
+      if (in->data[i] > max) max = in->data[i];
+
+  f32 sum = 0.0f;
   for (u64 i = 0; i < size; i++) {
-    out->data[i] = expf(in->data[i]);
-    sum += out->data[i];
+      out->data[i] = expf(in->data[i] - max);
+      sum += out->data[i];
   }
 
   scale_matrix(out, 1.0f / sum);
+
   return true;
 }
 
